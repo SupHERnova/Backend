@@ -1,4 +1,7 @@
 spring:
+  application:
+    name: SupHernova
+
   datasource:
     url: jdbc:mysql://localhost:3306/${DB_NAME}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME}
