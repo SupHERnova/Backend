@@ -40,6 +40,10 @@ public class BriefingService {
 
     @Transactional(readOnly = true)
     public List<BriefingResponse> getBriefingsByCustomer(Long customerId) {
+        if (!customerRepository.existsById(customerId)) {
+            throw new ProjectException(GeneralErrorCode.NOT_FOUND);
+        }
+
         return briefingRepository.findAllByCustomerIdOrderByCreatedAtDescIdDesc(customerId).stream()
                 .map(BriefingResponse::from)
                 .toList();

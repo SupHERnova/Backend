@@ -38,6 +38,10 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public List<CustomerResponse> getCustomersByStore(Long storeId) {
+        if (!storeRepository.existsById(storeId)) {
+            throw new ProjectException(GeneralErrorCode.NOT_FOUND);
+        }
+
         return customerRepository.findAllByStoreId(storeId).stream()
                 .map(CustomerResponse::from)
                 .toList();

@@ -2,6 +2,7 @@ package com.example.suphernova.domain.customer.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 public record CustomerCreateRequest(
@@ -19,6 +20,7 @@ public record CustomerCreateRequest(
         @Size(max = 10, message = "성별은 10자 이하여야 합니다.")
         String gender,
 
+        @PositiveOrZero(message = "나이는 0 이상이어야 합니다.")
         Integer age
 ) {
 }
