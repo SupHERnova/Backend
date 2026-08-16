@@ -49,4 +49,22 @@ public class Customer extends BaseTimeEntity {
 
     @Column(name = "last_visit_at")
     private Instant lastVisitAt;
+
+    @Column(name = "crm_id")
+    private Long crmId;
+
+    @Column(name = "total_purchase_count")
+    private Integer totalPurchaseCount;
+
+    @Column(name = "total_purchase_amount")
+    private Long totalPurchaseAmount;
+
+    @Column(name = "phone", length = 30)
+    private String phone;
+
+    @Column(name = "sa_name", length = 50)
+    private String saName;
+
+    @Column(name = "preferred_contact_method", length = 100)
+    private String preferredContactMethod;
 }
