@@ -3,12 +3,14 @@
 ## 다이어그램
 
 ```mermaid
+mermaid
 erDiagram
     STORE ||--o{ CUSTOMER : has
     STORE ||--o{ PRODUCT : has
     CUSTOMER ||--o{ CUSTOM_ORDER : places
     CUSTOMER ||--o{ KEYWORD : prefers
     CUSTOMER ||--o{ BRIEFING : receives
+    CUSTOMER ||--o{ RECORDS : has
     CUSTOM_ORDER ||--o{ ORDER_ITEM : contains
     PRODUCT ||--o{ ORDER_ITEM : "ordered as"
     PRODUCT ||--o{ PRODUCT_KEYWORD : tagged_with
@@ -22,7 +24,7 @@ erDiagram
     CUSTOMER {
         bigint customer_id PK
         bigint store_id FK
-        bigint crm_id
+        varchar(255) crm_id
         varchar(50) customer_name
         varchar(20) grade
         varchar(10) gender
@@ -34,6 +36,7 @@ erDiagram
         varchar(30) phone
         varchar(50) sa_name
         varchar(100) preferred_contact_method
+        enum recommendation_type
     }
 
     PRODUCT {
@@ -57,6 +60,7 @@ erDiagram
     KEYWORD {
         bigint keyword_id PK
         bigint customer_id FK
+        enum tag_category
         varchar(10) keyword_name
     }
 
@@ -83,79 +87,98 @@ erDiagram
         varchar(20) status
         datetime created_at
     }
+
+    RECORDS {
+        bigint record_id PK
+        bigint customer_id FK
+        text raw_note
+        text ai_summary
+        datetime created_at
+    }
 ```
 
 ## DDL (원본)
 
 ```sql
 CREATE TABLE `product` (
-    `product_id`    BIGINT    NOT NULL,
-    `store_id`    BIGINT    NOT NULL    COMMENT '매장ID',
-    `product_name`    VARCHAR(100)    NULL,
-    `brand`    VARCHAR(50)    NULL,
-    `price`    BIGINT    NULL,
-    `stock_quantity`    INT    NULL,
-    `restocked_at`    DATETIME    NULL    COMMENT '재입고 추천 로직 판단용',
-    `image_url`    VARCHAR(255)    NULL
+        `product_id`    BIGINT    NOT NULL,
+        `store_id`    BIGINT    NOT NULL    COMMENT '매장ID',
+        `product_name`    VARCHAR(100)    NULL,
+        `brand`    VARCHAR(50)    NULL,
+        `price`    BIGINT    NULL,
+        `stock_quantity`    INT    NULL,
+        `restocked_at`    DATETIME    NULL    COMMENT '재입고 추천 로직 판단용',
+        `image_url`    VARCHAR(255)    NULL
 );
 
 CREATE TABLE `custom_order` (
-    `order_id`    BIGINT    NOT NULL,
-    `customer_id`    BIGINT    NOT NULL,
-    `created_at`    DATETIME    NULL
+        `order_id`    BIGINT    NOT NULL,
+        `customer_id`    BIGINT    NOT NULL,
+        `created_at`    DATETIME    NULL
 );
 
 CREATE TABLE `keyword` (
-    `customer_id`    BIGINT    NOT NULL,
-    `keyword_name`    VARCHAR(10)    NULL
+        `keyword_id`    BIGINT    NOT NULL,
+        `customer_id`    BIGINT    NOT NULL,
+        `tag_category`   VARCHAR(20)   NULL    COMMENT '(BRAND, COLOR, MATERIAL, MOOD)',
+        `keyword_name`    VARCHAR(10)    NULL
 );
 
 CREATE TABLE `store` (
-    `store_id`    BIGINT    NOT NULL    COMMENT '매장ID',
-    `store_name`    VARCHAR(100)    NOT NULL    COMMENT '매장명',
-    `manager_name`    VARCHAR(100)    NULL
+        `store_id`    BIGINT    NOT NULL    COMMENT '매장ID',
+        `store_name`    VARCHAR(100)    NOT NULL    COMMENT '매장명',
+        `manager_name`    VARCHAR(100)    NULL
 );
 
 CREATE TABLE `customer` (
-    `customer_id`    BIGINT    NOT NULL,
-    `store_id`    BIGINT    NOT NULL,
-    `crm_id`    BIGINT    NULL,
-    `customer_name`    VARCHAR(50)    NOT NULL,
-    `grade`    VARCHAR(20)    NULL,
-    `gender`    VARCHAR(10)    NULL,
-    `age`    INT    NULL,
-    `last_visit_at`    DATETIME    NULL,
-    `created_at`    DATETIME    NOT NULL    DEFAULT CURRENT_TIMESTAMP,
-    `total_purchase_count`    INT    NULL,
-    `total_purchase_amount`    BIGINT    NULL,
-    `phone`    VARCHAR(30)    NULL,
-    `sa_name`    VARCHAR(50)    NULL,
-    `preferred_contact_method`    VARCHAR(100)    NULL
+        `customer_id`    BIGINT    NOT NULL,
+        `store_id`    BIGINT    NOT NULL,
+        `crm_id`    VARCHAR(255)    NULL,
+        `customer_name`    VARCHAR(50)    NOT NULL,
+        `grade`    VARCHAR(20)    NULL,
+        `gender`    VARCHAR(10)    NULL,
+        `age`    INT    NULL,
+        `last_visit_at`    DATETIME    NULL,
+        `created_at`    DATETIME    NOT NULL    DEFAULT CURRENT_TIMESTAMP,
+        `total_purchase_count`    INT    NULL,
+        `total_purchase_amount`    BIGINT    NULL,
+        `phone`    VARCHAR(30)    NULL,
+        `sa_name`    VARCHAR(50)    NULL,
+        `preferred_contact_method`    VARCHAR(100)    NULL,
+        `recommendation_type`    VARCHAR(20)    NULL    COMMENT '(RESTOCK, HIGH_MATCH)'
 );
 
 CREATE TABLE `order_item` (
-    `order_item_id`    BIGINT    NOT NULL,
-    `order_id`    BIGINT    NOT NULL,
-    `product_id`    BIGINT    NOT NULL,
-    `quantity`    INT    NULL
+        `order_item_id`    BIGINT    NOT NULL,
+        `order_id`    BIGINT    NOT NULL,
+        `product_id`    BIGINT    NOT NULL,
+        `quantity`    INT    NULL
 );
 
 CREATE TABLE `product_keyword` (
-    `product_keyword_id`    BIGINT    NOT NULL,
-    `product_id`    BIGINT    NOT NULL,
-    `tag_category`    ENUM    NULL    COMMENT '(BRAND, COLOR, MATERIAL, MOOD)',
-    `tag_name`    VARCHAR(100)    NULL    COMMENT 'ex) 블랙, 미니멀, 스무드 레더'
+        `product_keyword_id`    BIGINT    NOT NULL,
+        `product_id`    BIGINT    NOT NULL,
+        `tag_category`    ENUM    NULL    COMMENT '(BRAND, COLOR, MATERIAL, MOOD)',
+        `tag_name`    VARCHAR(100)    NULL    COMMENT 'ex) 블랙, 미니멀, 스무드 레더'
 );
 
 CREATE TABLE `briefing` (
-    `briefing_id`    BIGINT    NOT NULL,
-    `customer_id`    BIGINT    NOT NULL,
-    `summary_text`    TEXT    NULL,
-    `script_text`    TEXT    NULL,
-    `tts_audio_url`    VARCHAR(500)    NULL    COMMENT '음성 브리핑 파일(BRIEF-03)',
-    `tts_duration`    INT    NULL    COMMENT '재생 길이(초)',
-    `status`    VARCHAR(20)    NOT NULL    DEFAULT 'SUCCESS'    COMMENT '상태(SUCCESS/NO_HISTORY/API_FAIL)',
-    `created_at`    DATETIME    NOT NULL    DEFAULT CURRENT_TIMESTAMP
+        `briefing_id`    BIGINT    NOT NULL,
+        `customer_id`    BIGINT    NOT NULL,
+        `summary_text`    TEXT    NULL,
+        `script_text`    TEXT    NULL,
+        `tts_audio_url`    VARCHAR(500)    NULL    COMMENT '음성 브리핑 파일(BRIEF-03)',
+        `tts_duration`    INT    NULL    COMMENT '재생 길이(초)',
+        `status`    VARCHAR(20)    NOT NULL    DEFAULT 'SUCCESS'    COMMENT '상태(SUCCESS/NO_HISTORY/API_FAIL)',
+        `created_at`    DATETIME    NOT NULL    DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE `records` (
+        `record_id`    BIGINT    NOT NULL,
+        `customer_id`    BIGINT    NOT NULL,
+        `raw_note`    TEXT    NOT NULL,
+        `ai_summary`    TEXT    NOT NULL,
+        `created_at`    DATETIME    NOT NULL    DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
