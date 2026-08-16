@@ -2,15 +2,8 @@ package com.example.suphernova.domain.customer.entity;
 
 import com.example.suphernova.domain.store.entity.Store;
 import com.example.suphernova.global.common.entity.BaseTimeEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -67,4 +60,8 @@ public class Customer extends BaseTimeEntity {
 
     @Column(name = "preferred_contact_method", length = 100)
     private String preferredContactMethod;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recommendation_type", length = 20)
+    private RecommendationType recommendationType;
 }
