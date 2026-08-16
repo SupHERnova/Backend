@@ -44,7 +44,7 @@ public class Customer extends BaseTimeEntity {
     private Instant lastVisitAt;
 
     @Column(name = "crm_id")
-    private Long crmId;
+    private String crmId;
 
     @Column(name = "total_purchase_count")
     private Integer totalPurchaseCount;

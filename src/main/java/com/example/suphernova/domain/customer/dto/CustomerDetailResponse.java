@@ -5,7 +5,7 @@ import java.time.Instant;
 
 public record CustomerDetailResponse(
         Long customerId,
-        Long crmId,
+        String crmId,
         String customerName,
         String grade,
         Integer totalPurchaseCount,
