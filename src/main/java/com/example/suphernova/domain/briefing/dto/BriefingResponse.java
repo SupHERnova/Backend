@@ -2,7 +2,7 @@ package com.example.suphernova.domain.briefing.dto;
 
 import com.example.suphernova.domain.briefing.entity.Briefing;
 import com.example.suphernova.domain.briefing.entity.BriefingStatus;
-import java.time.Instant;
+import java.time.LocalDate;
 
 public record BriefingResponse(
         Long briefingId,
@@ -13,7 +13,7 @@ public record BriefingResponse(
         String ttsAudioUrl,
         Integer ttsDuration,
         BriefingStatus status,
-        Instant createdAt
+        LocalDate createdAt
 ) {
 
     public static BriefingResponse from(Briefing briefing) {

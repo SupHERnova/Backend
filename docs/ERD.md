@@ -29,7 +29,7 @@ erDiagram
         varchar(10) gender
         int age
         datetime last_visit_at
-        datetime created_at
+        date created_at
         int total_purchase_count
         bigint total_purchase_amount
         varchar(30) phone
@@ -66,7 +66,7 @@ erDiagram
     CUSTOM_ORDER {
         bigint order_id PK
         bigint customer_id FK
-        datetime created_at
+        date created_at
     }
 
     ORDER_ITEM {
@@ -84,7 +84,7 @@ erDiagram
         varchar(500) tts_audio_url
         int tts_duration
         varchar(20) status
-        datetime created_at
+        date created_at
     }
 
     RECORDS {
@@ -187,3 +187,10 @@ CREATE TABLE `records` (
 - JPA `GenerationType.IDENTITY` 생성을 정상 지원하도록 DDL 내 전 테이블 PK에 `AUTO_INCREMENT PRIMARY KEY`를 선언함.
 - Mermaid 다이어그램 블록 상단의 중복 키워드 문법 오류를 수정함.
 - `keyword` 테이블 PK 선언, FK 제약조건의 Hibernate 자동 생성(`@ManyToOne` + `@JoinColumn`), 패키지 구조 배치는 기존 변경 사항과 동일하게 유지함.
+- `keyword` 테이블은 원본 DDL에 PK가 정의되어 있지 않아, JPA 엔티티 매핑을 위해 `keyword_id BIGINT AUTO_INCREMENT PK`를 새로 추가함.
+- FK 제약조건은 원본 DDL에 명시되어 있지 않았지만, 기존 `store`/`customer`/`briefing` 컨벤션과 동일하게 `@ManyToOne` + `@JoinColumn`으로 매핑하여 Hibernate가 FK 제약조건을 자동 생성하도록 함 (`product.store_id`, `custom_order.customer_id`, `keyword.customer_id`, `order_item.order_id`/`product_id`, `product_keyword.product_id`).
+- `custom_order.created_at`은 DDL상 `NULL` 허용이라 `BaseTimeEntity`(NOT NULL 강제)를 상속하지 않고 별도 `@CreatedDate` 필드로 매핑함.
+- 패키지 구조: `domain/product`(Product, ProductKeyword, TagCategory), `domain/order`(CustomOrder, OrderItem), `domain/customer`(기존 Customer 확장 + Keyword 신규 추가).
+- 이번 작업은 엔티티/리포지토리 스키마 반영까지이며, Service/Controller/DTO(브리핑 상세 API 등)는 다음 단계에서 별도로 진행.
+- **`created_at`은 시간 없이 날짜(`DATE`)만 저장한다.** 원본 DDL은 `DATETIME`이었지만, 시/분/초 정보가 필요 없어 `LocalDate`로 매핑을 변경함(`Customer`, `Briefing`, `CustomOrder` 공통).
+- DB 커넥션 timezone이 UTC로 고정돼 있어 저장되는 시각이 한국시간보다 9시간 느리게 찍히던 문제가 있었음. JDBC URL의 `serverTimezone`을 `Asia/Seoul`로, JVM 기본 타임존도 앱 시작 시점에 `Asia/Seoul`로 맞춰서 `LocalDate.now()` 등 날짜 계산이 한국 기준으로 되도록 수정함.

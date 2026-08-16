@@ -2,11 +2,10 @@ package com.example.suphernova.domain.briefing.dto;
 
 import com.example.suphernova.domain.briefing.entity.Briefing;
 import com.example.suphernova.domain.briefing.entity.BriefingStatus;
-import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
-public record
-BriefingDetailResponse(
+public record BriefingDetailResponse(
         Long briefingId,
         Long customerId,
         String customerName,
@@ -15,7 +14,7 @@ BriefingDetailResponse(
         String ttsAudioUrl,
         Integer ttsDuration,
         BriefingStatus status,
-        Instant createdAt,
+        LocalDate createdAt,
         ResolvedRequestResponse resolvedRequest,
         List<RecommendedProductResponse> recommendedProducts
 ) {
