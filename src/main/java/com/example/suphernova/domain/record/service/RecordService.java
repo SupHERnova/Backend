@@ -10,6 +10,7 @@ import com.example.suphernova.domain.record.repository.RecordRepository;
 import com.example.suphernova.global.apiPayload.code.GeneralErrorCode;
 import com.example.suphernova.global.apiPayload.exception.ProjectException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -20,12 +21,13 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RecordService {
 
-    private final RecordRepository recordRepository;
     private final CustomerRepository customerRepository;
+    private final RecordRepository recordRepository;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${openai.api.key}")
@@ -38,46 +40,36 @@ public class RecordService {
     private String model;
 
     @Transactional
-    public RecordResponseDto createRecord(Long customerId, RecordRequestDto requestDto) {
+    public RecordResponseDto createAndSaveRecord(Long customerId, RecordRequestDto requestDto) {
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
 
-        // 1. LLM을 통한 텍스트 요약 및 정리 (실패 시 원본 저장 Fallback)
-        String aiSummary = summarizeNote(requestDto.rawNote());
+        // 1. 수기 메모를 AI로 정돈/요약
+        String aiSummary = summarizeNoteWithAi(customer.getCustomerName(), requestDto.rawNote());
 
-        // 2. DB에 기록 저장
+        // 2. Records 엔티티 생성 및 DB 저장
         Records record = Records.builder()
                 .customer(customer)
                 .rawNote(requestDto.rawNote())
                 .aiSummary(aiSummary)
                 .build();
 
-        recordRepository.save(record);
+        Records savedRecord = recordRepository.save(record);
 
-        return RecordResponseDto.from(record);
+        // 3. DTO 변환 및 반환
+        return RecordResponseDto.from(savedRecord);
     }
 
-    private String summarizeNote(String rawNote) {
-        // API 키 미설정 시 원본 메모 그대로 반환
-        if (openAiApiKey == null || openAiApiKey.isBlank() || "mock-key".equals(openAiApiKey)) {
-            return rawNote;
-        }
-
+    private String summarizeNoteWithAi(String customerName, String rawNote) {
         try {
-            String systemPrompt = """
-                당신은 명품 매장 직원(SA)의 고객 상담 메모를 깔끔하게 요약해주는 AI 보조입니다.
-                전달받은 메모를 바탕으로 아래 형식에 맞춰 핵심만 가독성 좋게 정리해 주세요:
-                - 관심 상품 및 반응
-                - 망설인 이유 또는 다음 연락/방문 시점
-                - 요청 사항 (사이즈, 컬러 등)
-                (해당하는 내용이 메모에 없으면 해당 항목은 생략하고 불릿 포인트 형태로 간결히 정리하세요.)
-                """;
+            String systemPrompt = "당신은 고급 명품 매장의 CRM 전담 AI 비서입니다. 판매원이 입력한 거친 수기 메모를 바탕으로 '관심 상품 및 착용 소감', '구매 주저 이유/요청 사항' 등을 명확하고 정돈된 핵심 문장(2~3문장)으로 간결하게 작성하세요.";
+            String userPrompt = String.format("고객명: %s\n수기 메모: %s", customerName, rawNote);
 
             OpenAiDto.Request requestBody = new OpenAiDto.Request(
                     model,
                     List.of(
                             new OpenAiDto.Message("system", systemPrompt),
-                            new OpenAiDto.Message("user", rawNote)
+                            new OpenAiDto.Message("user", userPrompt)
                     ),
                     0.5
             );
@@ -87,15 +79,15 @@ public class RecordService {
             headers.setBearerAuth(openAiApiKey);
 
             HttpEntity<OpenAiDto.Request> entity = new HttpEntity<>(requestBody, headers);
-
             OpenAiDto.Response response = restTemplate.postForObject(openAiApiUrl, entity, OpenAiDto.Response.class);
 
             if (response != null && response.choices() != null && !response.choices().isEmpty()) {
                 return response.choices().get(0).message().content().trim();
             }
-            return rawNote; // 요약 실패 시 원본 전달
+            return rawNote;
         } catch (Exception e) {
-            return rawNote; // API 오류 시 원본 전달하여 저장 성공 보장
+            log.error("AI 요약 처리 중 오류 발생: ", e);
+            return rawNote; // AI 실패 시 rawNote를 그대로 fallback 저장
         }
     }
 }
