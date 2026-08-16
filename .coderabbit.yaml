@@ -1,0 +1,15 @@
+# CodeRabbit 리뷰봇 설정 (https://docs.coderabbit.ai/reference/configuration)
+language: "ko-KR"
+
+reviews:
+  # assertive는 사소한 것까지 다 지적하니 chill로 시작 (필요하면 변경)
+  profile: "chill"
+  high_level_summary: true
+  request_changes_workflow: false
+  auto_review:
+    enabled: true
+    base_branches:
+      - develop
+
+chat:
+  auto_reply: true
