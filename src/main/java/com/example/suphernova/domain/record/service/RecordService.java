@@ -28,9 +28,10 @@ public class RecordService {
 
     private final CustomerRepository customerRepository;
     private final RecordRepository recordRepository;
-    private final RestTemplate restTemplate; // Config 빈 주입
+    private final RestTemplate restTemplate;
 
-    @Value("${openai.api.key}")
+    // 환경 변수 미설정 시 빈 문자열을 기본값으로 주입받아 빈 생성 예외 방지
+    @Value("${openai.api.key:}")
     private String openAiApiKey;
 
     @Value("${openai.api.url:https://api.openai.com/v1/chat/completions}")
@@ -40,14 +41,11 @@ public class RecordService {
     private String model;
 
     public RecordResponseDto createAndSaveRecord(Long customerId, RecordRequestDto requestDto) {
-        // 1. 고객 존재 여부 조회
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
 
-        // 2. 외부 AI API 호출 (고객 실명 제거 및 메모 비식별화 처리)
         String aiSummary = summarizeNoteWithAi(requestDto.rawNote());
 
-        // 3. DB 저장 수행
         return saveRecordTransaction(customer, requestDto.rawNote(), aiSummary);
     }
 
@@ -65,12 +63,11 @@ public class RecordService {
 
     private String summarizeNoteWithAi(String rawNote) {
         if (openAiApiKey == null || openAiApiKey.isBlank() || "mock-key".equals(openAiApiKey)) {
-            log.warn("OpenAI API Key가 설정되지 않아 기본 rawNote를 반환합니다.");
+            log.warn("OpenAI API Key가 설정되지 않았거나 올바르지 않아 기본 rawNote를 반환합니다.");
             return rawNote;
         }
 
         try {
-            // 외부 전송 전 메모 내 전화번호, 이메일 마스킹 처리
             String anonymizedNote = maskPersonalInfo(rawNote);
 
             String systemPrompt = "당신은 고급 명품 매장의 CRM 전담 AI 비서입니다. 판매원이 입력한 거친 수기 메모를 바탕으로 '관심 상품 및 착용 소감', '구매 주저 이유/요청 사항' 등을 명확하고 정돈된 핵심 문장(2~3문장)으로 간결하게 작성하세요.";
@@ -109,8 +106,8 @@ public class RecordService {
         if (text == null) return "";
         // 전화번호 마스킹 (예: 010-1234-5678 -> 010-****-****)
         String masked = text.replaceAll("(01[016789])[-.\\s]?(\\d{3,4})[-.\\s]?(\\d{4})", "$1-****-****");
-        // 이메일 마스킹 (예: test@example.com -> t***@example.com)
-        masked = masked.replaceAll("(?<=.{1}).(?=.*@)", "*");
+        // 이메일 마스킹 (예: test@example.com -> t***@example.com) - 안전한 이메일 영역 타겟팅
+        masked = masked.replaceAll("(?i)\\b([a-z0-9._%+-])([a-z0-9._%+-]+)(@[a-z0-9.-]+\\.[a-z]{2,})\\b", "$1***$3");
         return masked;
     }
 }
