@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,24 +49,26 @@ public class CustomerService {
 
     /**
      * 매장별 고객 목록 조회 및 이름 검색 (취향 키워드 태그 목록 포함)
-     * - 최근 방문일(lastVisitAt) 내림차순 정렬
+     * - 최근 방문일(lastVisitAt) 내림차순 정렬 & Pageable 페이징 적용
      */
     @Transactional(readOnly = true)
-    public List<CustomerListResponse> getCustomersByStore(Long storeId, String search) {
+    public Slice<CustomerListResponse> getCustomersByStore(Long storeId, String search, Pageable pageable) {
         if (!storeRepository.existsById(storeId)) {
             throw new ProjectException(GeneralErrorCode.NOT_FOUND);
         }
 
-        List<Customer> customers;
+        Slice<Customer> customers;
         if (search == null || search.trim().isEmpty()) {
-            customers = customerRepository.findAllByStoreIdOrderByLastVisitAtDesc(storeId);
+            customers = customerRepository.findAllByStoreIdOrderByLastVisitAtDesc(storeId, pageable);
         } else {
-            customers = customerRepository.findAllByStoreIdAndCustomerNameContainingIgnoreCaseOrderByLastVisitAtDesc(storeId, search.trim());
+            customers = customerRepository.findAllByStoreIdAndCustomerNameContainingIgnoreCaseOrderByLastVisitAtDesc(
+                    storeId, search.trim(), pageable
+            );
         }
 
         List<Long> customerIds = customers.stream().map(Customer::getId).toList();
 
-        // N+1 쿼리 방지: 취향 키워드 일괄 조회
+        // N+1 쿼리 방지: 현재 페이지 대상 취향 키워드 일괄 조회
         Map<Long, List<String>> keywordMap = keywordRepository.findAllByCustomerIdIn(customerIds)
                 .stream()
                 .collect(Collectors.groupingBy(
@@ -72,9 +76,9 @@ public class CustomerService {
                         Collectors.mapping(Keyword::getKeywordName, Collectors.toList())
                 ));
 
-        return customers.stream()
-                .map(customer -> CustomerListResponse.of(customer, keywordMap.getOrDefault(customer.getId(), List.of())))
-                .toList();
+        return customers.map(customer ->
+                CustomerListResponse.of(customer, keywordMap.getOrDefault(customer.getId(), List.of()))
+        );
     }
 
     /**

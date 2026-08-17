@@ -9,8 +9,10 @@ import com.example.suphernova.global.apiPayload.code.GeneralSuccessCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,13 +38,14 @@ public class CustomerController {
                 .body(ApiResponse.of(GeneralSuccessCode.CREATED, response));
     }
 
-    @Operation(summary = "매장별 고객 목록 및 이름 검색 조회", description = "매장에 등록된 고객 목록을 조회하거나 이름을 검색합니다. (취향 태그 포함)")
+    @Operation(summary = "매장별 고객 목록 및 이름 검색 조회", description = "매장에 등록된 고객 목록을 페이징 조회하거나 이름을 검색합니다. (취향 태그 포함)")
     @GetMapping("/api/stores/{storeId}/customers")
-    public ResponseEntity<ApiResponse<List<CustomerListResponse>>> getCustomersByStore(
+    public ResponseEntity<ApiResponse<Slice<CustomerListResponse>>> getCustomersByStore(
             @PathVariable Long storeId,
-            @RequestParam(required = false) String search
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 20) Pageable pageable
     ) {
-        List<CustomerListResponse> response = customerService.getCustomersByStore(storeId, search);
+        Slice<CustomerListResponse> response = customerService.getCustomersByStore(storeId, search, pageable);
         return ResponseEntity.status(GeneralSuccessCode.OK.getStatus())
                 .body(ApiResponse.of(GeneralSuccessCode.OK, response));
     }
