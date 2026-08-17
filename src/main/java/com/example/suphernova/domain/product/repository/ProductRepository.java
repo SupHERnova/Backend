@@ -15,8 +15,13 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         SELECT COUNT(DISTINCT k.customer.id)
         FROM Keyword k
         WHERE k.keywordName IN :keywords AND k.customer.id <> :targetCustomerId
-        GROUP BY k.customer.id
-        HAVING COUNT(k.keywordName) >= 3
+        AND k.customer.id IN (
+            SELECT k2.customer.id
+            FROM Keyword k2
+            WHERE k2.keywordName IN :keywords AND k2.customer.id <> :targetCustomerId
+            GROUP BY k2.customer.id
+            HAVING COUNT(k2.keywordName) >= 3
+        )
     """)
     Long countSimilarCustomers(@Param("targetCustomerId") Long targetCustomerId, @Param("keywords") List<String> keywords);
 
