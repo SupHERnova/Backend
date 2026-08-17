@@ -165,7 +165,6 @@ public class RecommendationService {
     private String fetchLlmMatchReason(Customer customer, List<String> keywords,
                                        RecommendationResponse.RestockedProductDto restocked,
                                        List<RecommendationResponse.MatchedProductDto> matched) {
-        // API 키가 없거나 유효하지 않은 경우 예외 발생 대신 폴백 멘트 반환
         if (openAiApiKey == null || openAiApiKey.isBlank() || "mock-key".equals(openAiApiKey)) {
             log.warn("OpenAI API Key가 설정되지 않았거나 올바르지 않습니다. 기본 추천 멘트를 반환합니다.");
             return "고객님의 취향에 맞는 맞춤형 추천 상품을 확인해보세요.";
@@ -178,8 +177,9 @@ public class RecommendationService {
             String keywordStr = (keywords == null || keywords.isEmpty()) ? "없음" : String.join(", ", keywords);
 
             String systemPrompt = "당신은 명품 브랜드의 인공지능 큐레이터입니다. 추천 상품과 재입고 상품 정보를 바탕으로 고객에게 건넬 고급스러운 2문장의 첫 인사 멘트를 해요체로 작성하세요.";
-            String userPrompt = String.format("고객명: %s, 취향키워드: %s, 재입고/주요상품: %s, 추천상품: %s",
-                    customer.getCustomerName(), keywordStr, restockedName, matchedNames);
+
+            String userPrompt = String.format("대상: 고객님, 취향키워드: %s, 재입고/주요상품: %s, 추천상품: %s",
+                    keywordStr, restockedName, matchedNames);
 
             OpenAiDto.Request requestBody = new OpenAiDto.Request(
                     model,
