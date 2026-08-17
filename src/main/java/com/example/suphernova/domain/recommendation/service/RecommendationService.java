@@ -34,7 +34,7 @@ public class RecommendationService {
     private final CustomerRepository customerRepository;
     private final KeywordRepository keywordRepository;
     private final ProductRepository productRepository;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate; // Config 빈 주입 사용 (타임아웃 적용)
 
     @Value("${openai.api.key}")
     private String openAiApiKey;
@@ -202,7 +202,7 @@ public class RecommendationService {
             }
             return "고객님의 취향에 맞는 맞춤형 추천 상품을 확인해보세요.";
         } catch (Exception e) {
-            log.error("OpenAI 멘트 생성 중 예외 발생: ", e);
+            log.error("OpenAI 멘트 생성 중 예외 발생 (Fallback 기본 문구 반환): ", e);
             return "고객님의 취향에 맞는 맞춤형 추천 상품을 확인해보세요.";
         }
     }
