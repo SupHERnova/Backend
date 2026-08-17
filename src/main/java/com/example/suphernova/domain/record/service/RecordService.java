@@ -30,7 +30,6 @@ public class RecordService {
     private final RecordRepository recordRepository;
     private final RestTemplate restTemplate;
 
-    // 환경 변수 미설정 시 빈 문자열을 기본값으로 주입받아 빈 생성 예외 방지
     @Value("${openai.api.key:}")
     private String openAiApiKey;
 
@@ -104,9 +103,10 @@ public class RecordService {
      */
     private String maskPersonalInfo(String text) {
         if (text == null) return "";
-        // 전화번호 마스킹 (예: 010-1234-5678 -> 010-****-****)
+        // 1. 전화번호 마스킹 (예: 010-1234-5678 -> 010-****-****)
         String masked = text.replaceAll("(01[016789])[-.\\s]?(\\d{3,4})[-.\\s]?(\\d{4})", "$1-****-****");
-        // 이메일 마스킹 (예: test@example.com -> t***@example.com) - 안전한 이메일 영역 타겟팅
+        // 2. 이메일 로컬 파트 마스킹 (예: test@example.com -> t***@example.com)
+        // 이메일 토큰 단어 경계(\\b) 내에서 첫 글자만 유지하고 로컬 파트 잔여 영역만 마스킹
         masked = masked.replaceAll("(?i)\\b([a-z0-9._%+-])([a-z0-9._%+-]+)(@[a-z0-9.-]+\\.[a-z]{2,})\\b", "$1***$3");
         return masked;
     }
