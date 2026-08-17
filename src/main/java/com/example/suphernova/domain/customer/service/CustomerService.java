@@ -49,7 +49,7 @@ public class CustomerService {
 
     /**
      * 매장별 고객 목록 조회 및 이름 검색 (취향 키워드 태그 목록 포함)
-     * - 최근 방문일(lastVisitAt) 내림차순 정렬 & Pageable 페이징 적용
+     * - 최근 방문일(lastVisitAt) 내림차순 및 id 내림차순 보조 정렬 & Pageable 페이징 적용
      */
     @Transactional(readOnly = true)
     public Slice<CustomerListResponse> getCustomersByStore(Long storeId, String search, Pageable pageable) {
@@ -59,9 +59,11 @@ public class CustomerService {
 
         Slice<Customer> customers;
         if (search == null || search.trim().isEmpty()) {
-            customers = customerRepository.findAllByStoreIdOrderByLastVisitAtDesc(storeId, pageable);
+            // 보조 정렬 조건(IdDesc) 추가된 Repository 메서드로 변경
+            customers = customerRepository.findAllByStoreIdOrderByLastVisitAtDescIdDesc(storeId, pageable);
         } else {
-            customers = customerRepository.findAllByStoreIdAndCustomerNameContainingIgnoreCaseOrderByLastVisitAtDesc(
+            // 보조 정렬 조건(IdDesc) 추가된 Repository 메서드로 변경
+            customers = customerRepository.findAllByStoreIdAndCustomerNameContainingIgnoreCaseOrderByLastVisitAtDescIdDesc(
                     storeId, search.trim(), pageable
             );
         }
