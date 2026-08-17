@@ -47,13 +47,7 @@ public class RecommendationService {
 
     @Transactional(readOnly = true)
     public RecommendationResponse getRecommendedProducts(Long customerId) {
-        // 1. API 키 검증
-        if (openAiApiKey == null || openAiApiKey.isBlank() || "mock-key".equals(openAiApiKey)) {
-            log.warn("OpenAI API Key가 설정되지 않았습니다.");
-            throw new ProjectException(GeneralErrorCode.BAD_REQUEST);
-        }
-
-        // 2. 고객 및 취향 키워드 조회
+        // 1. 고객 및 취향 키워드 조회
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
 
@@ -64,16 +58,16 @@ public class RecommendationService {
 
         List<Product> allProducts = productRepository.findAll();
 
-        // 3. [슬롯 1] 재입고 / 고일치 조건 분기 및 Top 1
+        // 2. [슬롯 1] 재입고 / 고일치 조건 분기 및 Top 1
         RecommendationResponse.RestockedProductDto restockedProductDto = getTopSlotProduct(customer, allProducts, customerKeywords);
 
-        // 4. [슬롯 2] 취향 매칭 추천 상품 Top 3 (고객-상품 키워드 일치율)
+        // 3. [슬롯 2] 취향 매칭 추천 상품 Top 3 (고객-상품 키워드 일치율)
         List<RecommendationResponse.MatchedProductDto> matchedProducts = getTopMatchedProducts(allProducts, customerKeywords);
 
-        // 5. [슬롯 3] 유사 취향 고객 데이터 (5명 미만 시 null 반환)
+        // 4. [슬롯 3] 유사 취향 고객 데이터 (5명 미만 시 null 반환)
         RecommendationResponse.SimilarCustomerStatsDto similarCustomerStats = getSimilarCustomerStats(customerId, customerKeywords);
 
-        // 6. [슬롯 4] AI 추천 첫 멘트 생성
+        // 5. [슬롯 4] AI 추천 첫 멘트 생성 (OpenAI 실패/미설정 시 대체 문구 반환)
         String recommendationComment = fetchLlmMatchReason(customer, customerKeywords, restockedProductDto, matchedProducts);
 
         return new RecommendationResponse(
@@ -171,6 +165,12 @@ public class RecommendationService {
     private String fetchLlmMatchReason(Customer customer, List<String> keywords,
                                        RecommendationResponse.RestockedProductDto restocked,
                                        List<RecommendationResponse.MatchedProductDto> matched) {
+        // API 키가 없거나 유효하지 않은 경우 예외 발생 대신 폴백 멘트 반환
+        if (openAiApiKey == null || openAiApiKey.isBlank() || "mock-key".equals(openAiApiKey)) {
+            log.warn("OpenAI API Key가 설정되지 않았거나 올바르지 않습니다. 기본 추천 멘트를 반환합니다.");
+            return "고객님의 취향에 맞는 맞춤형 추천 상품을 확인해보세요.";
+        }
+
         try {
             String matchedNames = (matched == null || matched.isEmpty()) ? "없음" :
                     matched.stream().map(RecommendationResponse.MatchedProductDto::productName).collect(Collectors.joining(", "));
