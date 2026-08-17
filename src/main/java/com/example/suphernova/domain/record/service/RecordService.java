@@ -39,16 +39,15 @@ public class RecordService {
     @Value("${openai.api.model:gpt-4o-mini}")
     private String model;
 
-    // 외부 API 호출 구간이므로 전체 메서드에는 @Transactional을 붙이지 않음
     public RecordResponseDto createAndSaveRecord(Long customerId, RecordRequestDto requestDto) {
-        // 1. 고객 존재 여부 단순 조회 (readOnly 트랜잭션 권장)
+        // 1. 고객 존재 여부 조회
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
 
-        // 2. 외부 AI API 호출 (DB 트랜잭션 밖에서 실행)
+        // 2. 외부 AI API 호출 (고객 실명 제거 및 메모 비식별화 처리)
         String aiSummary = summarizeNoteWithAi(requestDto.rawNote());
 
-        // 3. DB 저장 수행 (별도 헬퍼 메서드로 트랜잭션 내에서 처리)
+        // 3. DB 저장 수행
         return saveRecordTransaction(customer, requestDto.rawNote(), aiSummary);
     }
 
@@ -71,9 +70,11 @@ public class RecordService {
         }
 
         try {
+            // 외부 전송 전 메모 내 전화번호, 이메일 마스킹 처리
+            String anonymizedNote = maskPersonalInfo(rawNote);
+
             String systemPrompt = "당신은 고급 명품 매장의 CRM 전담 AI 비서입니다. 판매원이 입력한 거친 수기 메모를 바탕으로 '관심 상품 및 착용 소감', '구매 주저 이유/요청 사항' 등을 명확하고 정돈된 핵심 문장(2~3문장)으로 간결하게 작성하세요.";
-            // 개인정보 유출 방지: 고객 실명 대신 비식별 표현 사용
-            String userPrompt = String.format("수기 메모: %s", rawNote);
+            String userPrompt = String.format("수기 메모: %s", anonymizedNote);
 
             OpenAiDto.Request requestBody = new OpenAiDto.Request(
                     model,
@@ -99,5 +100,17 @@ public class RecordService {
             log.error("AI 요약 처리 중 오류 발생 (Fallback rawNote 적용): ", e);
             return rawNote;
         }
+    }
+
+    /**
+     * 외부 AI API 전송 전 개인식별정보(PII) 비식별화
+     */
+    private String maskPersonalInfo(String text) {
+        if (text == null) return "";
+        // 전화번호 마스킹 (예: 010-1234-5678 -> 010-****-****)
+        String masked = text.replaceAll("(01[016789])[-.\\s]?(\\d{3,4})[-.\\s]?(\\d{4})", "$1-****-****");
+        // 이메일 마스킹 (예: test@example.com -> t***@example.com)
+        masked = masked.replaceAll("(?<=.{1}).(?=.*@)", "*");
+        return masked;
     }
 }
