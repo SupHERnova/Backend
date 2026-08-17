@@ -20,12 +20,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             FROM Keyword k2
             WHERE k2.keywordName IN :keywords AND k2.customer.id <> :targetCustomerId
             GROUP BY k2.customer.id
-            HAVING COUNT(k2.keywordName) >= 3
+            HAVING COUNT(DISTINCT k2.keywordName) >= 3
         )
     """)
     Long countSimilarCustomers(@Param("targetCustomerId") Long targetCustomerId, @Param("keywords") List<String> keywords);
 
-    // 2. 유사 고객군(키워드 3개 이상 일치)의 최근 30일 카테고리별 구매 건수 집계
+    // 2. 유사 고객군(서로 다른 키워드 3개 이상 일치)의 최근 30일 카테고리별 구매 건수 집계
     @Query("""
         SELECT p.brand AS categoryName, SUM(oi.quantity) AS purchaseCount
         FROM OrderItem oi
@@ -36,7 +36,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             FROM Keyword k
             WHERE k.keywordName IN :keywords AND k.customer.id <> :targetCustomerId
             GROUP BY k.customer.id
-            HAVING COUNT(k.keywordName) >= 3
+            HAVING COUNT(DISTINCT k.keywordName) >= 3
         )
         AND o.createdAt >= :since
         GROUP BY p.brand
