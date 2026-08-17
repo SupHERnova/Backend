@@ -10,20 +10,16 @@ import java.util.List;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-    // 1. 특정 키워드와 3개 이상 일치하는 유사 고객 수 조회 (5명 미만 체크용)
+    // 1. 특정 키워드와 3개 이상 일치하는 유사 고객 수 조회 (파라미터명 customerId로 통일)
     @Query("""
         SELECT COUNT(DISTINCT k.customer.id)
         FROM Keyword k
-        WHERE k.keywordName IN :keywords AND k.customer.id <> :targetCustomerId
-        AND k.customer.id IN (
-            SELECT k2.customer.id
-            FROM Keyword k2
-            WHERE k2.keywordName IN :keywords AND k2.customer.id <> :targetCustomerId
-            GROUP BY k2.customer.id
-            HAVING COUNT(DISTINCT k2.keywordName) >= 3
-        )
+        WHERE k.keywordName IN :keywords
+          AND k.customer.id <> :customerId
+        GROUP BY k.customer.id
+        HAVING COUNT(DISTINCT k.keywordName) >= 3
     """)
-    Long countSimilarCustomers(@Param("targetCustomerId") Long targetCustomerId, @Param("keywords") List<String> keywords);
+    Long countSimilarCustomers(@Param("customerId") Long customerId, @Param("keywords") List<String> keywords);
 
     // 2. 유사 고객군(서로 다른 키워드 3개 이상 일치)의 최근 30일 카테고리별 구매 건수 집계
     @Query("""
@@ -34,7 +30,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         WHERE o.customer.id IN (
             SELECT k.customer.id
             FROM Keyword k
-            WHERE k.keywordName IN :keywords AND k.customer.id <> :targetCustomerId
+            WHERE k.keywordName IN :keywords
+              AND k.customer.id <> :customerId
             GROUP BY k.customer.id
             HAVING COUNT(DISTINCT k.keywordName) >= 3
         )
@@ -43,7 +40,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
         ORDER BY purchaseCount DESC
     """)
     List<CategoryStatProjection> findSimilarCustomerPurchaseStats(
-            @Param("targetCustomerId") Long targetCustomerId,
+            @Param("customerId") Long customerId,
             @Param("keywords") List<String> keywords,
             @Param("since") LocalDateTime since
     );
