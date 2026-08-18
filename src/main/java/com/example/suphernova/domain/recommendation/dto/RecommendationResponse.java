@@ -13,7 +13,7 @@ public record RecommendationResponse(
             String productName,
             String size,
             Integer restockedCount,
-            String restockReason
+            String slotReason
     ) {}
 
     public record MatchedProductDto(
