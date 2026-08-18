@@ -38,3 +38,6 @@ out/
 
 ### Local audio storage (dev) ###
 /storage/
+
+### Env ###
+.env

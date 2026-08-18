@@ -53,23 +53,10 @@ public class Briefing extends BaseTimeEntity {
     @Builder.Default
     private BriefingStatus status = BriefingStatus.SUCCESS;
 
-    @Column(name = "input_audio_url", length = 500)
-    private String inputAudioUrl;
-
-    @Column(name = "stt_job_id", length = 100)
-    private String sttJobId;
-
-    public static Briefing pending(Customer customer, String inputAudioUrl) {
+    public static Briefing create(Customer customer) {
         return Briefing.builder()
                 .customer(customer)
-                .inputAudioUrl(inputAudioUrl)
-                .status(BriefingStatus.PENDING)
                 .build();
-    }
-
-    public void markProcessing(String sttJobId) {
-        this.sttJobId = sttJobId;
-        this.status = BriefingStatus.PROCESSING;
     }
 
     public void applyGeneratedContent(String summaryText, String scriptText) {

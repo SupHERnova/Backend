@@ -3,7 +3,7 @@ package com.example.suphernova.domain.briefing.client;
 public interface TtsClient {
 
     /**
-     * @return 비동기 음성 합성 작업 ID
+     * @return 합성된 오디오 바이트(mp3)
      */
-    String requestSynthesis(String scriptText, Long referenceId);
+    byte[] synthesize(String scriptText);
 }

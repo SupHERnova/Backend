@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class BriefingService {
 
     private static final int RECOMMENDED_PRODUCT_LIMIT = 5;
+    private static final ZoneId STORE_ZONE = ZoneId.of("Asia/Seoul");
 
     private final BriefingRepository briefingRepository;
     private final CustomerRepository customerRepository;
@@ -131,8 +132,8 @@ public class BriefingService {
         if (product.getStockQuantity() == null || product.getStockQuantity() <= 0 || product.getRestockedAt() == null) {
             return false;
         }
-        LocalDate restockedDate = product.getRestockedAt().atZone(ZoneId.systemDefault()).toLocalDate();
-        return restockedDate.equals(LocalDate.now(ZoneId.systemDefault()));
+        LocalDate restockedDate = product.getRestockedAt().atZone(STORE_ZONE).toLocalDate();
+        return restockedDate.equals(LocalDate.now(STORE_ZONE));
     }
 
     private int matchScore(Set<String> preferredKeywords, Set<String> productTags) {

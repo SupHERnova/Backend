@@ -29,13 +29,10 @@ openai:
     url: https://api.openai.com/v1/chat/completions
     model: gpt-4o-mini
 
-app:
-  stt:
-    base-url: ${STT_BASE_URL:http://localhost:8001}
   tts:
-    base-url: ${TTS_BASE_URL:http://localhost:8002}
-  internal:
-    base-url: ${INTERNAL_BASE_URL:http://localhost:8080}
-    token: ${INTERNAL_TOKEN}
+    model: ${OPENAI_TTS_MODEL:tts-1}
+    voice: ${OPENAI_TTS_VOICE:alloy}
+
+app:
   storage:
     audio-base-path: ${AUDIO_STORAGE_PATH:./storage/audio}
