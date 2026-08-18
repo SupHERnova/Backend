@@ -1,14 +1,15 @@
 package com.example.suphernova.domain.product.repository;
 
 import com.example.suphernova.domain.product.entity.Product;
+import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
 public interface ProductRepository extends JpaRepository<Product, Long> {
+
+    List<Product> findAllByStoreId(Long storeId);
 
     // 1. 특정 키워드와 3개 이상 일치하는 유사 고객 수 조회 (서브쿼리로 감싸서 단일 Long 반환)
     @Query("""

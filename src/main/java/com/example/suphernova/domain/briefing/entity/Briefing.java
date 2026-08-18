@@ -52,4 +52,29 @@ public class Briefing extends BaseTimeEntity {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private BriefingStatus status = BriefingStatus.SUCCESS;
+
+    public static Briefing create(Customer customer) {
+        return Briefing.builder()
+                .customer(customer)
+                .build();
+    }
+
+    public void applyGeneratedContent(String summaryText, String scriptText) {
+        this.summaryText = summaryText;
+        this.scriptText = scriptText;
+    }
+
+    public void applyTtsResult(String ttsAudioUrl, Integer ttsDuration) {
+        this.ttsAudioUrl = ttsAudioUrl;
+        this.ttsDuration = ttsDuration;
+        this.status = BriefingStatus.SUCCESS;
+    }
+
+    public void markNoHistory() {
+        this.status = BriefingStatus.NO_HISTORY;
+    }
+
+    public void markFailed() {
+        this.status = BriefingStatus.API_FAIL;
+    }
 }

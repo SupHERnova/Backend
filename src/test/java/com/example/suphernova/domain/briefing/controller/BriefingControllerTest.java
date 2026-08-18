@@ -14,7 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -76,10 +76,24 @@ class BriefingControllerTest {
                 .andExpect(jsonPath("$.result.customerId").value(customerId))
                 .andExpect(jsonPath("$.result.summaryText").value("VIP 고객, 어깨 통증 호소"))
                 .andExpect(jsonPath("$.result.scriptText").value("이몽희님은 지난 방문에서..."))
+                .andExpect(jsonPath("$.result.firstSentence").value("이몽희님은 지난 방문에서."))
                 .andExpect(jsonPath("$.result.ttsAudioUrl").value("https://cdn.example.com/tts/1.mp3"))
                 .andExpect(jsonPath("$.result.ttsDuration").value(42))
                 .andExpect(jsonPath("$.result.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.result.createdAt").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("스크립트가 여러 문장이면 첫 문장만 firstSentence로 반환한다")
+    void createBriefing_withMultiSentenceScript_returnsFirstSentenceOnly() throws Exception {
+        mockMvc.perform(post("/api/briefings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"customerId": %d,
+                                 "scriptText": "지난번 문의하신 블랙 로퍼가 오늘 입고됐습니다. 신상품도 함께 보여드리겠습니다."}
+                                """.formatted(customerId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.result.firstSentence").value("지난번 문의하신 블랙 로퍼가 오늘 입고됐습니다."));
     }
 
     @Test

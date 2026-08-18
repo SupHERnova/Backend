@@ -1,6 +1,7 @@
 package com.example.suphernova.domain.briefing.controller;
 
 import com.example.suphernova.domain.briefing.dto.BriefingCreateRequest;
+import com.example.suphernova.domain.briefing.dto.BriefingDetailResponse;
 import com.example.suphernova.domain.briefing.dto.BriefingResponse;
 import com.example.suphernova.domain.briefing.service.BriefingService;
 import com.example.suphernova.global.apiPayload.ApiResponse;
@@ -50,6 +51,16 @@ public class BriefingController {
             @PathVariable Long briefingId
     ) {
         BriefingResponse response = briefingService.getBriefing(briefingId);
+        return ResponseEntity.status(GeneralSuccessCode.OK.getStatus())
+                .body(ApiResponse.of(GeneralSuccessCode.OK, response));
+    }
+
+    @Operation(summary = "브리핑 상세 조회", description = "미해결 요청 해결 정보와 추천 상품을 포함한 브리핑 상세 정보를 조회합니다.")
+    @GetMapping("/api/briefings/{briefingId}/detail")
+    public ResponseEntity<ApiResponse<BriefingDetailResponse>> getBriefingDetail(
+            @PathVariable Long briefingId
+    ) {
+        BriefingDetailResponse response = briefingService.getBriefingDetail(briefingId);
         return ResponseEntity.status(GeneralSuccessCode.OK.getStatus())
                 .body(ApiResponse.of(GeneralSuccessCode.OK, response));
     }
