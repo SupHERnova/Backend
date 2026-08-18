@@ -22,7 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -128,7 +129,8 @@ public class RecommendationService {
                 return createEmptyStats("INSUFFICIENT_CUSTOMERS", "유사 고객의 데이터가 5건 이상 필요합니다.");
             }
 
-            LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+            // DB Entity의 createdAt 타입인 Instant로 맞춤
+            Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
             var stats = productRepository.findSimilarCustomerPurchaseStats(customerId, keywords, thirtyDaysAgo);
 
             if (stats == null || stats.isEmpty()) {
