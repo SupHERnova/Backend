@@ -10,18 +10,21 @@ import java.util.List;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-    // 1. 특정 키워드와 3개 이상 일치하는 유사 고객 수 조회 (파라미터명 customerId로 통일)
+    // 1. 특정 키워드와 3개 이상 일치하는 유사 고객 수 조회 (서브쿼리로 감싸서 단일 Long 반환)
     @Query("""
-        SELECT COUNT(DISTINCT k.customer.id)
-        FROM Keyword k
-        WHERE k.keywordName IN :keywords
-          AND k.customer.id <> :customerId
-        GROUP BY k.customer.id
-        HAVING COUNT(DISTINCT k.keywordName) >= 3
+        SELECT COUNT(sub.customerId)
+        FROM (
+            SELECT k.customer.id AS customerId
+            FROM Keyword k
+            WHERE k.keywordName IN :keywords
+              AND k.customer.id <> :customerId
+            GROUP BY k.customer.id
+            HAVING COUNT(DISTINCT k.keywordName) >= 3
+        ) sub
     """)
     Long countSimilarCustomers(@Param("customerId") Long customerId, @Param("keywords") List<String> keywords);
 
-    // 2. 유사 고객군(서로 다른 키워드 3개 이상 일치)의 최근 30일 카테고리별 구매 건수 집계
+    // 2. 유사 고객군의 최근 30일 카테고리별 구매 건수 집계 (기존 유지)
     @Query("""
         SELECT p.brand AS categoryName, SUM(oi.quantity) AS purchaseCount
         FROM OrderItem oi
