@@ -34,7 +34,7 @@ public class RecommendationService {
     private final CustomerRepository customerRepository;
     private final KeywordRepository keywordRepository;
     private final ProductRepository productRepository;
-    private final RestTemplate restTemplate; // Config 빈 주입 사용 (타임아웃 적용)
+    private final RestTemplate restTemplate;
 
     @Value("${openai.api.key}")
     private String openAiApiKey;
@@ -47,7 +47,6 @@ public class RecommendationService {
 
     @Transactional(readOnly = true)
     public RecommendationResponse getRecommendedProducts(Long customerId) {
-        // 1. 고객 및 취향 키워드 조회
         Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
 
@@ -58,16 +57,16 @@ public class RecommendationService {
 
         List<Product> allProducts = productRepository.findAll();
 
-        // 2. [슬롯 1] 재입고 / 고일치 조건 분기 및 Top 1
+        // 1. [슬롯 1] 재입고 / 고일치 조건 분기 및 Top 1
         RecommendationResponse.RestockedProductDto restockedProductDto = getTopSlotProduct(customer, allProducts, customerKeywords);
 
-        // 3. [슬롯 2] 취향 매칭 추천 상품 Top 3 (고객-상품 키워드 일치율)
+        // 2. [슬롯 2] 취향 매칭 추천 상품 Top 3
         List<RecommendationResponse.MatchedProductDto> matchedProducts = getTopMatchedProducts(allProducts, customerKeywords);
 
-        // 4. [슬롯 3] 유사 취향 고객 데이터 (5명 미만 시 null 반환)
+        // 3. [슬롯 3] 유사 취향 고객 데이터 (사유 코드 및 메세지 포함)
         RecommendationResponse.SimilarCustomerStatsDto similarCustomerStats = getSimilarCustomerStats(customerId, customerKeywords);
 
-        // 5. [슬롯 4] AI 추천 첫 멘트 생성 (OpenAI 실패/미설정 시 대체 문구 반환)
+        // 4. [슬롯 4] AI 추천 첫 멘트 생성
         String recommendationComment = fetchLlmMatchReason(customer, customerKeywords, restockedProductDto, matchedProducts);
 
         return new RecommendationResponse(
@@ -84,18 +83,16 @@ public class RecommendationService {
         return products.stream()
                 .filter(p -> p.getStockQuantity() != null && p.getStockQuantity() > 0)
                 .filter(p -> {
-                    // RESTOCK 타입: 재입고 일자가 존재하는 상품
                     if (isRestockType) {
                         return p.getRestockedAt() != null;
                     }
-                    // HIGH_MATCH 타입: 취향 일치율이 0% 초과인 상품
                     return calculateMatchRate(p, keywords) > 0;
                 })
                 .max(Comparator.comparingInt(p -> calculateMatchRate(p, keywords)))
                 .map(p -> new RecommendationResponse.RestockedProductDto(
                         p.getId(),
                         p.getProductName(),
-                        "FREE", // 필요 시 p.getSize() 등 연동
+                        "FREE",
                         p.getStockQuantity(),
                         isRestockType ? "이전 요청 상품 재입고" : "최고 취향 일치 상품"
                 ))
@@ -121,29 +118,59 @@ public class RecommendationService {
     }
 
     private RecommendationResponse.SimilarCustomerStatsDto getSimilarCustomerStats(Long customerId, List<String> keywords) {
-        if (keywords == null || keywords.isEmpty()) return null;
-
-        Long similarCount = productRepository.countSimilarCustomers(customerId, keywords);
-        if (similarCount == null || similarCount < 5) {
-            return null; // 프론트 예외 UI 처리
+        if (keywords == null || keywords.isEmpty()) {
+            return createEmptyStats("NO_KEYWORDS", "고객의 취향 키워드가 설정되어 있지 않습니다.");
         }
 
-        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-        var stats = productRepository.findSimilarCustomerPurchaseStats(customerId, keywords, thirtyDaysAgo);
+        try {
+            Long similarCount = productRepository.countSimilarCustomers(customerId, keywords);
+            if (similarCount == null || similarCount < 5) {
+                return createEmptyStats("INSUFFICIENT_CUSTOMERS", "유사 고객의 데이터가 5건 이상 필요합니다.");
+            }
 
-        if (stats == null || stats.isEmpty()) return null;
+            LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+            var stats = productRepository.findSimilarCustomerPurchaseStats(customerId, keywords, thirtyDaysAgo);
 
-        long total = stats.stream().mapToLong(ProductRepository.CategoryStatProjection::getPurchaseCount).sum();
-        List<RecommendationResponse.CategoryPurchaseRatioDto> ratios = stats.stream()
-                .map(s -> new RecommendationResponse.CategoryPurchaseRatioDto(
-                        s.getCategoryName(),
-                        (int) Math.round(((double) s.getPurchaseCount() / (total == 0 ? 1 : total)) * 100)
-                ))
-                .limit(2)
-                .toList();
+            if (stats == null || stats.isEmpty()) {
+                return createEmptyStats("NO_PURCHASE_HISTORY", "최근 30일간 유사 고객의 구매 데이터가 존재하지 않습니다.");
+            }
 
-        String topCategory = ratios.isEmpty() ? "인기 상품" : ratios.get(0).categoryName();
-        return new RecommendationResponse.SimilarCustomerStatsDto(topCategory, ratios);
+            long total = stats.stream().mapToLong(ProductRepository.CategoryStatProjection::getPurchaseCount).sum();
+            if (total == 0) {
+                return createEmptyStats("NO_PURCHASE_HISTORY", "최근 30일간 유사 고객의 구매 데이터가 존재하지 않습니다.");
+            }
+
+            List<RecommendationResponse.CategoryPurchaseRatioDto> ratios = stats.stream()
+                    .map(s -> new RecommendationResponse.CategoryPurchaseRatioDto(
+                            s.getCategoryName(),
+                            (int) Math.round(((double) s.getPurchaseCount() / total) * 100)
+                    ))
+                    .limit(2)
+                    .toList();
+
+            String topCategory = ratios.isEmpty() ? "인기 상품" : ratios.get(0).categoryName();
+            return new RecommendationResponse.SimilarCustomerStatsDto(
+                    true,
+                    "SUCCESS",
+                    "정상 조회되었습니다.",
+                    topCategory,
+                    ratios
+            );
+
+        } catch (Exception e) {
+            log.error("유사 고객 통계 집계 중 예외 발생: ", e);
+            return createEmptyStats("SYSTEM_ERROR", "유사 고객 통계를 불러오는 중 오류가 발생했습니다.");
+        }
+    }
+
+    private RecommendationResponse.SimilarCustomerStatsDto createEmptyStats(String reasonCode, String message) {
+        return new RecommendationResponse.SimilarCustomerStatsDto(
+                false,
+                reasonCode,
+                message,
+                null,
+                List.of()
+        );
     }
 
     private int calculateMatchRate(Product product, List<String> customerKeywords) {
@@ -177,7 +204,6 @@ public class RecommendationService {
             String keywordStr = (keywords == null || keywords.isEmpty()) ? "없음" : String.join(", ", keywords);
 
             String systemPrompt = "당신은 명품 브랜드의 인공지능 큐레이터입니다. 추천 상품과 재입고 상품 정보를 바탕으로 고객에게 건넬 고급스러운 2문장의 첫 인사 멘트를 해요체로 작성하세요.";
-
             String userPrompt = String.format("대상: 고객님, 취향키워드: %s, 재입고/주요상품: %s, 추천상품: %s",
                     keywordStr, restockedName, matchedNames);
 
