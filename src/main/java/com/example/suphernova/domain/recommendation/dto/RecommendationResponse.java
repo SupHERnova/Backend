@@ -28,12 +28,12 @@ public record RecommendationResponse(
             boolean isAvailable,          // 데이터 제공 가능 여부 (true/false)
             String reasonCode,           // 프론트 분기용 코드 (e.g. "INSUFFICIENT_CUSTOMERS", "NO_PURCHASE_HISTORY")
             String reasonMessage,        // 프론트 노출용 안내 메시지
-            String topCategoryName,
-            List<CategoryPurchaseRatioDto> ratios
+            String topProductName,
+            List<ProductPurchaseRatioDto> ratios
     ) {}
 
-    public record CategoryPurchaseRatioDto(
-            String categoryName,
+    public record ProductPurchaseRatioDto(
+            String productName,
             Integer ratio
     ) {}
 }

@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -35,6 +34,7 @@ public class RecommendationService {
     private final KeywordRepository keywordRepository;
     private final ProductRepository productRepository;
     private final RestTemplate restTemplate;
+    private final SimilarCustomerStatsService similarCustomerStatsService;
 
     @Value("${openai.api.key}")
     private String openAiApiKey;
@@ -64,7 +64,8 @@ public class RecommendationService {
         List<RecommendationResponse.MatchedProductDto> matchedProducts = getTopMatchedProducts(allProducts, customerKeywords);
 
         // 3. [슬롯 3] 유사 취향 고객 데이터 (사유 코드 및 메세지 포함)
-        RecommendationResponse.SimilarCustomerStatsDto similarCustomerStats = getSimilarCustomerStats(customerId, customerKeywords);
+        RecommendationResponse.SimilarCustomerStatsDto similarCustomerStats =
+                similarCustomerStatsService.getSimilarCustomerStats(customerId, customerKeywords);
 
         // 4. [슬롯 4] AI 추천 첫 멘트 생성
         String recommendationComment = fetchLlmMatchReason(customer, customerKeywords, restockedProductDto, matchedProducts);
@@ -78,23 +79,56 @@ public class RecommendationService {
     }
 
     private RecommendationResponse.RestockedProductDto getTopSlotProduct(Customer customer, List<Product> products, List<String> keywords) {
-        boolean isRestockType = customer.getRecommendationType() == RecommendationType.RESTOCK;
+        if (customer.getRecommendationType() == RecommendationType.RESTOCK) {
+            return findRestockedProduct(products, keywords);
+        }
 
         return products.stream()
                 .filter(p -> p.getStockQuantity() != null && p.getStockQuantity() > 0)
-                .filter(p -> {
-                    if (isRestockType) {
-                        return p.getRestockedAt() != null;
-                    }
-                    return calculateMatchRate(p, keywords) > 0;
-                })
+                .filter(p -> calculateMatchRate(p, keywords) > 0)
                 .max(Comparator.comparingInt(p -> calculateMatchRate(p, keywords)))
                 .map(p -> new RecommendationResponse.RestockedProductDto(
                         p.getId(),
                         p.getProductName(),
                         "FREE",
                         p.getStockQuantity(),
-                        isRestockType ? "이전 요청 상품 재입고" : "최고 취향 일치 상품"
+                        "최고 취향 일치 상품"
+                ))
+                .orElse(null);
+    }
+
+    /**
+     * 고객이 이전에 재입고를 요청한 상품(recommendationType=RESTOCK)이 해결됐는지 조회합니다.
+     * {@link com.example.suphernova.domain.briefing.service.BriefingService}의 브리핑 컨텍스트 조회에서도 재사용됩니다.
+     */
+    @Transactional(readOnly = true)
+    public RecommendationResponse.RestockedProductDto getRestockedRequestProduct(Long customerId) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
+
+        if (customer.getRecommendationType() != RecommendationType.RESTOCK) {
+            return null;
+        }
+
+        List<String> keywords = keywordRepository.findAllByCustomerId(customerId)
+                .stream()
+                .map(Keyword::getKeywordName)
+                .toList();
+
+        return findRestockedProduct(productRepository.findAll(), keywords);
+    }
+
+    private RecommendationResponse.RestockedProductDto findRestockedProduct(List<Product> products, List<String> keywords) {
+        return products.stream()
+                .filter(p -> p.getStockQuantity() != null && p.getStockQuantity() > 0)
+                .filter(p -> p.getRestockedAt() != null)
+                .max(Comparator.comparingInt(p -> calculateMatchRate(p, keywords)))
+                .map(p -> new RecommendationResponse.RestockedProductDto(
+                        p.getId(),
+                        p.getProductName(),
+                        "FREE",
+                        p.getStockQuantity(),
+                        "이전 요청 상품 재입고"
                 ))
                 .orElse(null);
     }
@@ -115,62 +149,6 @@ public class RecommendationService {
                         entry.getValue()
                 ))
                 .toList();
-    }
-
-    private RecommendationResponse.SimilarCustomerStatsDto getSimilarCustomerStats(Long customerId, List<String> keywords) {
-        if (keywords == null || keywords.isEmpty()) {
-            return createEmptyStats("NO_KEYWORDS", "고객의 취향 키워드가 설정되어 있지 않습니다.");
-        }
-
-        try {
-            Long similarCount = productRepository.countSimilarCustomers(customerId, keywords);
-            if (similarCount == null || similarCount < 5) {
-                return createEmptyStats("INSUFFICIENT_CUSTOMERS", "유사 고객의 데이터가 5건 이상 필요합니다.");
-            }
-
-            LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-            var stats = productRepository.findSimilarCustomerPurchaseStats(customerId, keywords, thirtyDaysAgo);
-
-            if (stats == null || stats.isEmpty()) {
-                return createEmptyStats("NO_PURCHASE_HISTORY", "최근 30일간 유사 고객의 구매 데이터가 존재하지 않습니다.");
-            }
-
-            long total = stats.stream().mapToLong(ProductRepository.CategoryStatProjection::getPurchaseCount).sum();
-            if (total == 0) {
-                return createEmptyStats("NO_PURCHASE_HISTORY", "최근 30일간 유사 고객의 구매 데이터가 존재하지 않습니다.");
-            }
-
-            List<RecommendationResponse.CategoryPurchaseRatioDto> ratios = stats.stream()
-                    .map(s -> new RecommendationResponse.CategoryPurchaseRatioDto(
-                            s.getCategoryName(),
-                            (int) Math.round(((double) s.getPurchaseCount() / total) * 100)
-                    ))
-                    .limit(2)
-                    .toList();
-
-            String topCategory = ratios.isEmpty() ? "인기 상품" : ratios.get(0).categoryName();
-            return new RecommendationResponse.SimilarCustomerStatsDto(
-                    true,
-                    "SUCCESS",
-                    "정상 조회되었습니다.",
-                    topCategory,
-                    ratios
-            );
-
-        } catch (Exception e) {
-            log.error("유사 고객 통계 집계 중 예외 발생: ", e);
-            return createEmptyStats("SYSTEM_ERROR", "유사 고객 통계를 불러오는 중 오류가 발생했습니다.");
-        }
-    }
-
-    private RecommendationResponse.SimilarCustomerStatsDto createEmptyStats(String reasonCode, String message) {
-        return new RecommendationResponse.SimilarCustomerStatsDto(
-                false,
-                reasonCode,
-                message,
-                null,
-                List.of()
-        );
     }
 
     private int calculateMatchRate(Product product, List<String> customerKeywords) {

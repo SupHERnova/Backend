@@ -1,7 +1,7 @@
 package com.example.suphernova.domain.product.repository;
 
 import com.example.suphernova.domain.product.entity.Product;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -25,9 +25,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     """)
     Long countSimilarCustomers(@Param("customerId") Long customerId, @Param("keywords") List<String> keywords);
 
-    // 2. 유사 고객군의 최근 30일 카테고리별 구매 건수 집계 (기존 유지)
+    // 2. 유사 고객군의 최근 30일 상품별 구매 건수 집계
     @Query("""
-        SELECT p.brand AS categoryName, SUM(oi.quantity) AS purchaseCount
+        SELECT p.productName AS productName, SUM(oi.quantity) AS purchaseCount
         FROM OrderItem oi
         JOIN oi.order o
         JOIN oi.product p
@@ -40,17 +40,17 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             HAVING COUNT(DISTINCT k.keywordName) >= 3
         )
         AND o.createdAt >= :since
-        GROUP BY p.brand
+        GROUP BY p.productName
         ORDER BY purchaseCount DESC
     """)
-    List<CategoryStatProjection> findSimilarCustomerPurchaseStats(
+    List<ProductStatProjection> findSimilarCustomerPurchaseStats(
             @Param("customerId") Long customerId,
             @Param("keywords") List<String> keywords,
-            @Param("since") LocalDateTime since
+            @Param("since") LocalDate since
     );
 
-    interface CategoryStatProjection {
-        String getCategoryName();
+    interface ProductStatProjection {
+        String getProductName();
         Long getPurchaseCount();
     }
 }

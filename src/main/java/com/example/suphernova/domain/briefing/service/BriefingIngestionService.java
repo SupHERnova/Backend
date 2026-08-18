@@ -12,6 +12,7 @@ import com.example.suphernova.domain.customer.repository.CustomerRepository;
 import com.example.suphernova.domain.customer.repository.KeywordRepository;
 import com.example.suphernova.global.apiPayload.code.GeneralErrorCode;
 import com.example.suphernova.global.apiPayload.exception.ProjectException;
+import com.example.suphernova.global.storage.AudioDurationCalculator;
 import com.example.suphernova.global.storage.AudioStorageService;
 import com.example.suphernova.global.storage.StoredAudio;
 import java.io.ByteArrayInputStream;
@@ -36,6 +37,7 @@ public class BriefingIngestionService {
     private final CustomerRepository customerRepository;
     private final KeywordRepository keywordRepository;
     private final AudioStorageService audioStorageService;
+    private final AudioDurationCalculator audioDurationCalculator;
     private final TtsClient ttsClient;
     private final AiBriefingGenerationClient aiBriefingGenerationClient;
 
@@ -58,7 +60,8 @@ public class BriefingIngestionService {
         try {
             byte[] audio = ttsClient.synthesize(result.scriptText());
             String ttsAudioUrl = storeAudio(audio);
-            briefing.applyTtsResult(ttsAudioUrl, null);
+            Integer ttsDuration = audioDurationCalculator.calculateSeconds(audio);
+            briefing.applyTtsResult(ttsAudioUrl, ttsDuration);
         } catch (Exception e) {
             log.warn("TTS 합성 실패. customerId={}", customerId, e);
             briefing.markFailed();
