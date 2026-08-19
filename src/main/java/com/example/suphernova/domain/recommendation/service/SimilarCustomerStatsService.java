@@ -2,14 +2,13 @@ package com.example.suphernova.domain.recommendation.service;
 
 import com.example.suphernova.domain.product.repository.ProductRepository;
 import com.example.suphernova.domain.recommendation.dto.RecommendationResponse;
-
-import java.time.Instant;
-import java.time.LocalDate;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -30,7 +29,8 @@ public class SimilarCustomerStatsService {
                 return createEmptyStats("INSUFFICIENT_CUSTOMERS", "유사 고객의 데이터가 5건 이상 필요합니다.");
             }
 
-            Instant thirtyDaysAgo = Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS);
+            // CustomOrder 엔티티의 createdAt 타입(LocalDate)에 맞춰 조작
+            LocalDate thirtyDaysAgo = LocalDate.now().minusDays(30);
             var stats = productRepository.findSimilarCustomerPurchaseStats(customerId, keywords, thirtyDaysAgo);
 
             if (stats == null || stats.isEmpty()) {
