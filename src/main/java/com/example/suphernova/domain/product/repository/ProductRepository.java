@@ -29,7 +29,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     // 2. 유사 고객군의 최근 30일 카테고리별 구매 건수 집계 (since 타입을 Instant로 변경)
     @Query("""
-        SELECT p.brand AS categoryName, SUM(oi.quantity) AS purchaseCount
+        SELECT p.productName AS productName, SUM(oi.quantity) AS purchaseCount
         FROM OrderItem oi
         JOIN oi.order o
         JOIN oi.product p
@@ -42,17 +42,17 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             HAVING COUNT(DISTINCT k.keywordName) >= 3
         )
         AND o.createdAt >= :since
-        GROUP BY p.brand
+        GROUP BY p.productName
         ORDER BY purchaseCount DESC
     """)
-    List<CategoryStatProjection> findSimilarCustomerPurchaseStats(
+    List<ProductStatProjection> findSimilarCustomerPurchaseStats(
             @Param("customerId") Long customerId,
             @Param("keywords") List<String> keywords,
             @Param("since") Instant since
     );
 
-    interface CategoryStatProjection {
-        String getCategoryName();
+    interface ProductStatProjection {
+        String getProductName();
         Long getPurchaseCount();
     }
 }

@@ -36,6 +36,7 @@ public class RecommendationService {
     private final KeywordRepository keywordRepository;
     private final ProductRepository productRepository;
     private final RestTemplate restTemplate;
+    private final SimilarCustomerStatsService similarCustomerStatsService;
 
     @Value("${openai.api.key}")
     private String openAiApiKey;
@@ -65,7 +66,8 @@ public class RecommendationService {
         List<RecommendationResponse.MatchedProductDto> matchedProducts = getTopMatchedProducts(allProducts, customerKeywords);
 
         // 3. [슬롯 3] 유사 취향 고객 데이터 (사유 코드 및 메세지 포함)
-        RecommendationResponse.SimilarCustomerStatsDto similarCustomerStats = getSimilarCustomerStats(customerId, customerKeywords);
+        RecommendationResponse.SimilarCustomerStatsDto similarCustomerStats =
+                similarCustomerStatsService.getSimilarCustomerStats(customerId, customerKeywords);
 
         // 4. [슬롯 4] AI 추천 첫 멘트 생성
         String recommendationComment = fetchLlmMatchReason(customer, customerKeywords, restockedProductDto, matchedProducts);
@@ -79,23 +81,56 @@ public class RecommendationService {
     }
 
     private RecommendationResponse.RestockedProductDto getTopSlotProduct(Customer customer, List<Product> products, List<String> keywords) {
-        boolean isRestockType = customer.getRecommendationType() == RecommendationType.RESTOCK;
+        if (customer.getRecommendationType() == RecommendationType.RESTOCK) {
+            return findRestockedProduct(products, keywords);
+        }
 
         return products.stream()
                 .filter(p -> p.getStockQuantity() != null && p.getStockQuantity() > 0)
-                .filter(p -> {
-                    if (isRestockType) {
-                        return p.getRestockedAt() != null;
-                    }
-                    return calculateMatchRate(p, keywords) > 0;
-                })
+                .filter(p -> calculateMatchRate(p, keywords) > 0)
                 .max(Comparator.comparingInt(p -> calculateMatchRate(p, keywords)))
                 .map(p -> new RecommendationResponse.RestockedProductDto(
                         p.getId(),
                         p.getProductName(),
                         "FREE",
                         p.getStockQuantity(),
-                        isRestockType ? "이전 요청 상품 재입고" : "최고 취향 일치 상품"
+                        "최고 취향 일치 상품"
+                ))
+                .orElse(null);
+    }
+
+    /**
+     * 고객이 이전에 재입고를 요청한 상품(recommendationType=RESTOCK)이 해결됐는지 조회합니다.
+     * {@link com.example.suphernova.domain.briefing.service.BriefingService}의 브리핑 컨텍스트 조회에서도 재사용됩니다.
+     */
+    @Transactional(readOnly = true)
+    public RecommendationResponse.RestockedProductDto getRestockedRequestProduct(Long customerId) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ProjectException(GeneralErrorCode.NOT_FOUND));
+
+        if (customer.getRecommendationType() != RecommendationType.RESTOCK) {
+            return null;
+        }
+
+        List<String> keywords = keywordRepository.findAllByCustomerId(customerId)
+                .stream()
+                .map(Keyword::getKeywordName)
+                .toList();
+
+        return findRestockedProduct(productRepository.findAll(), keywords);
+    }
+
+    private RecommendationResponse.RestockedProductDto findRestockedProduct(List<Product> products, List<String> keywords) {
+        return products.stream()
+                .filter(p -> p.getStockQuantity() != null && p.getStockQuantity() > 0)
+                .filter(p -> p.getRestockedAt() != null)
+                .max(Comparator.comparingInt(p -> calculateMatchRate(p, keywords)))
+                .map(p -> new RecommendationResponse.RestockedProductDto(
+                        p.getId(),
+                        p.getProductName(),
+                        "FREE",
+                        p.getStockQuantity(),
+                        "이전 요청 상품 재입고"
                 ))
                 .orElse(null);
     }

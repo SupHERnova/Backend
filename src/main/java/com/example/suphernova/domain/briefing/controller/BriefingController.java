@@ -1,7 +1,7 @@
 package com.example.suphernova.domain.briefing.controller;
 
+import com.example.suphernova.domain.briefing.dto.BriefingContextResponse;
 import com.example.suphernova.domain.briefing.dto.BriefingCreateRequest;
-import com.example.suphernova.domain.briefing.dto.BriefingDetailResponse;
 import com.example.suphernova.domain.briefing.dto.BriefingResponse;
 import com.example.suphernova.domain.briefing.service.BriefingService;
 import com.example.suphernova.global.apiPayload.ApiResponse;
@@ -55,12 +55,12 @@ public class BriefingController {
                 .body(ApiResponse.of(GeneralSuccessCode.OK, response));
     }
 
-    @Operation(summary = "브리핑 상세 조회", description = "미해결 요청 해결 정보와 추천 상품을 포함한 브리핑 상세 정보를 조회합니다.")
-    @GetMapping("/api/briefings/{briefingId}/detail")
-    public ResponseEntity<ApiResponse<BriefingDetailResponse>> getBriefingDetail(
-            @PathVariable Long briefingId
+    @Operation(summary = "브리핑 고객 컨텍스트 조회", description = "선호 취향, 최근 구매 이력, 유사 취향 고객 통계를 함께 조회합니다.")
+    @GetMapping("/api/customers/{customerId}/briefings/context")
+    public ResponseEntity<ApiResponse<BriefingContextResponse>> getBriefingContext(
+            @PathVariable Long customerId
     ) {
-        BriefingDetailResponse response = briefingService.getBriefingDetail(briefingId);
+        BriefingContextResponse response = briefingService.getBriefingContext(customerId);
         return ResponseEntity.status(GeneralSuccessCode.OK.getStatus())
                 .body(ApiResponse.of(GeneralSuccessCode.OK, response));
     }

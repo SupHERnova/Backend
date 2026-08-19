@@ -34,6 +34,9 @@ public class OpenAiTtsClient implements TtsClient {
     @Value("${openai.tts.voice:alloy}")
     private String voice;
 
+    @Value("${openai.tts.speed:1.15}")
+    private double speed;
+
     @Override
     public byte[] synthesize(String scriptText) {
         if (apiKey == null || apiKey.isBlank()) {
@@ -44,11 +47,11 @@ public class OpenAiTtsClient implements TtsClient {
                 .uri(SPEECH_URL)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new SpeechRequest(model, voice, scriptText, "mp3"))
+                .body(new SpeechRequest(model, voice, scriptText, "mp3", speed))
                 .retrieve()
                 .body(byte[].class);
     }
 
-    private record SpeechRequest(String model, String voice, String input, String response_format) {
+    private record SpeechRequest(String model, String voice, String input, String response_format, double speed) {
     }
 }

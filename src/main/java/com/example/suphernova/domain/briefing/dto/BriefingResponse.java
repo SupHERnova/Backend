@@ -3,6 +3,7 @@ package com.example.suphernova.domain.briefing.dto;
 import com.example.suphernova.domain.briefing.entity.Briefing;
 import com.example.suphernova.domain.briefing.entity.BriefingStatus;
 import java.time.LocalDate;
+import java.util.Arrays;
 
 public record BriefingResponse(
         Long briefingId,
@@ -35,15 +36,14 @@ public record BriefingResponse(
             return null;
         }
 
-        String firstLine = scriptText.strip().split("\n", 2)[0].strip();
-        int endIndex = -1;
-        for (char terminator : new char[]{'.', '!', '?'}) {
-            int index = firstLine.indexOf(terminator);
-            if (index >= 0 && (endIndex == -1 || index < endIndex)) {
-                endIndex = index;
-            }
-        }
+        String normalized = scriptText.strip().replace("\n", " ");
+        String[] sentences = normalized.split("(?<=[.!?])\\s*");
 
-        return endIndex == -1 ? firstLine : firstLine.substring(0, endIndex + 1);
+        return Arrays.stream(sentences)
+                .map(String::strip)
+                .filter(s -> !s.isBlank())
+                .filter(s -> !s.contains("안녕하세요"))
+                .findFirst()
+                .orElseGet(() -> sentences.length > 0 ? sentences[0].strip() : null);
     }
 }
