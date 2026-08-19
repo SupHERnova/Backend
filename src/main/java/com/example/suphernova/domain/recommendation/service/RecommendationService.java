@@ -22,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -149,6 +151,63 @@ public class RecommendationService {
                         entry.getValue()
                 ))
                 .toList();
+    }
+
+    private RecommendationResponse.SimilarCustomerStatsDto getSimilarCustomerStats(Long customerId, List<String> keywords) {
+        if (keywords == null || keywords.isEmpty()) {
+            return createEmptyStats("NO_KEYWORDS", "고객의 취향 키워드가 설정되어 있지 않습니다.");
+        }
+
+        try {
+            Long similarCount = productRepository.countSimilarCustomers(customerId, keywords);
+            if (similarCount == null || similarCount < 5) {
+                return createEmptyStats("INSUFFICIENT_CUSTOMERS", "유사 고객의 데이터가 5건 이상 필요합니다.");
+            }
+
+            // DB Entity의 createdAt 타입인 Instant로 맞춤
+            Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
+            var stats = productRepository.findSimilarCustomerPurchaseStats(customerId, keywords, thirtyDaysAgo);
+
+            if (stats == null || stats.isEmpty()) {
+                return createEmptyStats("NO_PURCHASE_HISTORY", "최근 30일간 유사 고객의 구매 데이터가 존재하지 않습니다.");
+            }
+
+            long total = stats.stream().mapToLong(ProductRepository.CategoryStatProjection::getPurchaseCount).sum();
+            if (total == 0) {
+                return createEmptyStats("NO_PURCHASE_HISTORY", "최근 30일간 유사 고객의 구매 데이터가 존재하지 않습니다.");
+            }
+
+            List<RecommendationResponse.CategoryPurchaseRatioDto> ratios = stats.stream()
+                    .map(s -> new RecommendationResponse.CategoryPurchaseRatioDto(
+                            s.getCategoryName(),
+                            (int) Math.round(((double) s.getPurchaseCount() / total) * 100)
+                    ))
+                    .limit(2)
+                    .toList();
+
+            String topCategory = ratios.isEmpty() ? "인기 상품" : ratios.get(0).categoryName();
+            return new RecommendationResponse.SimilarCustomerStatsDto(
+                    true,
+                    "SUCCESS",
+                    "정상 조회되었습니다.",
+                    topCategory,
+                    ratios
+            );
+
+        } catch (Exception e) {
+            log.error("유사 고객 통계 집계 중 예외 발생: ", e);
+            return createEmptyStats("SYSTEM_ERROR", "유사 고객 통계를 불러오는 중 오류가 발생했습니다.");
+        }
+    }
+
+    private RecommendationResponse.SimilarCustomerStatsDto createEmptyStats(String reasonCode, String message) {
+        return new RecommendationResponse.SimilarCustomerStatsDto(
+                false,
+                reasonCode,
+                message,
+                null,
+                List.of()
+        );
     }
 
     private int calculateMatchRate(Product product, List<String> customerKeywords) {
