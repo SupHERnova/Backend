@@ -2,6 +2,8 @@ package com.example.suphernova.domain.recommendation.service;
 
 import com.example.suphernova.domain.product.repository.ProductRepository;
 import com.example.suphernova.domain.recommendation.dto.RecommendationResponse;
+
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +30,7 @@ public class SimilarCustomerStatsService {
                 return createEmptyStats("INSUFFICIENT_CUSTOMERS", "유사 고객의 데이터가 5건 이상 필요합니다.");
             }
 
-            LocalDate thirtyDaysAgo = LocalDate.now().minusDays(30);
+            Instant thirtyDaysAgo = Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS);
             var stats = productRepository.findSimilarCustomerPurchaseStats(customerId, keywords, thirtyDaysAgo);
 
             if (stats == null || stats.isEmpty()) {
