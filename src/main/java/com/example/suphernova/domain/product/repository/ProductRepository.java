@@ -1,13 +1,12 @@
 package com.example.suphernova.domain.product.repository;
 
 import com.example.suphernova.domain.product.entity.Product;
-
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDate;
+import java.util.List;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
@@ -27,7 +26,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     """, nativeQuery = true)
     Long countSimilarCustomers(@Param("customerId") Long customerId, @Param("keywords") List<String> keywords);
 
-    // 2. 유사 고객군의 최근 30일 카테고리별 구매 건수 집계 (since 타입을 Instant로 변경)
+    // 2. 유사 고객군의 최근 30일 카테고리별 구매 건수 집계 (CustomOrder의 createdAt 타입인 LocalDate로 매칭)
     @Query("""
         SELECT p.productName AS productName, SUM(oi.quantity) AS purchaseCount
         FROM OrderItem oi
@@ -48,7 +47,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     List<ProductStatProjection> findSimilarCustomerPurchaseStats(
             @Param("customerId") Long customerId,
             @Param("keywords") List<String> keywords,
-            @Param("since") Instant since
+            @Param("since") LocalDate since
     );
 
     interface ProductStatProjection {
