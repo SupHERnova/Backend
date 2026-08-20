@@ -10,6 +10,10 @@ env:
   IMAGE_NAME: backend-app
   REGION: asia-northeast3
 
+permissions:
+  contents: 'read'
+  id-token: 'write'
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -19,16 +23,23 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 2. GCP 인증 (Service Account 없이 SSH Key 방식 및 gcloud CLI 설정)
+    # 2. GCP Workload Identity 인증 (권한 획득)
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+    # 3. GCP Cloud SDK 설정
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
 
-    # 3. Docker를 Artifact Registry에 로그인
+    # 4. Docker를 Artifact Registry에 로그인
     - name: Authenticate Docker to GAR
       run: |
         gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-    # 4. Docker 이미지 빌드 및 Artifact Registry로 Push
+    # 5. Docker 이미지 빌드 및 Artifact Registry로 Push
     - name: Build and Push Docker Image
       run: |
         IMAGE_TAG=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
@@ -38,7 +49,7 @@ jobs:
         docker push $IMAGE_TAG
         docker push $LATEST_TAG
 
-    # 5. GCP VM 인스턴스에 SSH 접속 후 새 Docker 컨테이너 실행
+    # 6. GCP VM 인스턴스에 SSH 접속 후 새 Docker 컨테이너 실행
     - name: Deploy to GCP VM
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -52,7 +63,7 @@ jobs:
           docker stop backend-container || true
           docker rm backend-container || true
           
-          # 최신 이미지 Pull 및 컨테이너 실행 (포트 8080)
+          # 최신 이미지 Pull 및 컨테이너 실행
           docker pull $IMAGE_TAG
           docker run -d --name backend-container -p 8080:8080 $IMAGE_TAG
           
