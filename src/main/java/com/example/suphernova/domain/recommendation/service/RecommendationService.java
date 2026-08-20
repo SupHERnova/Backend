@@ -80,7 +80,7 @@ public class RecommendationService {
 
     private RecommendationResponse.RestockedProductDto getTopSlotProduct(Customer customer, List<Product> products, List<String> keywords) {
         if (customer.getRecommendationType() == RecommendationType.RESTOCK) {
-            return findRestockedProduct(products, keywords);
+            return findRestockedProduct(products, keywords, customer.getRestockRequestedProductName());
         }
 
         return products.stream()
@@ -114,13 +114,36 @@ public class RecommendationService {
                 .map(Keyword::getKeywordName)
                 .toList();
 
-        return findRestockedProduct(productRepository.findAll(), keywords);
+        return findRestockedProduct(productRepository.findAll(), keywords, customer.getRestockRequestedProductName());
     }
 
-    private RecommendationResponse.RestockedProductDto findRestockedProduct(List<Product> products, List<String> keywords) {
-        return products.stream()
+    /**
+     * 재입고된 상품 중 하나를 고른다. 고객이 요청한 구체적인 상품명이 저장돼 있으면 그 상품이
+     * 실제로 재입고됐는지만 확인하고(없으면 미해결로 간주), 특정 상품을 모르면 기존처럼 취향
+     * 키워드와 가장 잘 맞는 재입고 상품으로 대체한다.
+     */
+    private RecommendationResponse.RestockedProductDto findRestockedProduct(
+            List<Product> products, List<String> keywords, String requestedProductName) {
+        List<Product> restockedProducts = products.stream()
                 .filter(p -> p.getStockQuantity() != null && p.getStockQuantity() > 0)
                 .filter(p -> p.getRestockedAt() != null)
+                .toList();
+
+        if (requestedProductName != null && !requestedProductName.isBlank()) {
+            return restockedProducts.stream()
+                    .filter(p -> matchesRequestedProduct(p.getProductName(), requestedProductName))
+                    .findFirst()
+                    .map(p -> new RecommendationResponse.RestockedProductDto(
+                            p.getId(),
+                            p.getProductName(),
+                            "FREE",
+                            p.getStockQuantity(),
+                            "요청하신 상품이 재입고되었습니다"
+                    ))
+                    .orElse(null);
+        }
+
+        return restockedProducts.stream()
                 .max(Comparator.comparingInt(p -> calculateMatchRate(p, keywords)))
                 .map(p -> new RecommendationResponse.RestockedProductDto(
                         p.getId(),
@@ -130,6 +153,12 @@ public class RecommendationService {
                         "이전 요청 상품 재입고"
                 ))
                 .orElse(null);
+    }
+
+    private boolean matchesRequestedProduct(String productName, String requestedProductName) {
+        String normalizedProduct = productName.replaceAll("\\s+", "").toLowerCase();
+        String normalizedRequested = requestedProductName.replaceAll("\\s+", "").toLowerCase();
+        return normalizedProduct.contains(normalizedRequested) || normalizedRequested.contains(normalizedProduct);
     }
 
     private List<RecommendationResponse.MatchedProductDto> getTopMatchedProducts(List<Product> products, List<String> keywords) {
