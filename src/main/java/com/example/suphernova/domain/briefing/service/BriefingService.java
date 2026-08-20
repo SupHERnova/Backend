@@ -41,7 +41,6 @@ public class BriefingService {
     private final OrderItemRepository orderItemRepository;
     private final SimilarCustomerStatsService similarCustomerStatsService;
     private final RecommendationService recommendationService;
-    private final BriefingIngestionService briefingIngestionService;
 
     @Transactional
     public BriefingResponse createBriefing(BriefingCreateRequest request) {
@@ -96,11 +95,13 @@ public class BriefingService {
         UnresolvedRequestResponse unresolvedRequest =
                 UnresolvedRequestResponse.from(recommendationService.getRestockedRequestProduct(customerId));
 
-        String narrative = buildContextNarrative(customer, preferredKeywords, recentPurchases, unresolvedRequest);
-        BriefingResponse briefing = briefingIngestionService.ingestText(customerId, narrative);
+        Long latestBriefingId = briefingRepository.findAllByCustomerIdOrderByCreatedAtDescIdDesc(customerId).stream()
+                .findFirst()
+                .map(Briefing::getId)
+                .orElse(null);
 
         return new BriefingContextResponse(
-                briefing.briefingId(),
+                latestBriefingId,
                 customer.getId(),
                 customer.getCustomerName(),
                 preferredKeywords,
@@ -108,46 +109,6 @@ public class BriefingService {
                 similarCustomerStats,
                 unresolvedRequest
         );
-    }
-
-    /**
-     * 화면에 보여줄 컨텍스트 데이터를 AI 브리핑 생성용 원문으로 직렬화한다.
-     * SA의 실시간 상담 전사문이 없는 시점(방문 전 브리핑)에도 TTS 브리핑을 만들 수 있도록,
-     * 컨텍스트 자체를 {@link BriefingIngestionService}의 입력으로 재사용한다.
-     */
-    private String buildContextNarrative(
-            Customer customer,
-            PreferredKeywordsResponse preferredKeywords,
-            List<RecentPurchaseResponse> recentPurchases,
-            UnresolvedRequestResponse unresolvedRequest
-    ) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(customer.getCustomerName()).append(" 고객님 방문 전 브리핑입니다. ");
-
-        if (preferredKeywords.brand() != null || preferredKeywords.color() != null
-                || preferredKeywords.material() != null || preferredKeywords.mood() != null) {
-            sb.append("선호 브랜드는 ").append(nullToNone(preferredKeywords.brand()))
-                    .append(", 컬러는 ").append(nullToNone(preferredKeywords.color()))
-                    .append(", 소재는 ").append(nullToNone(preferredKeywords.material()))
-                    .append(", 무드는 ").append(nullToNone(preferredKeywords.mood())).append("입니다. ");
-        }
-
-        if (unresolvedRequest.resolved()) {
-            sb.append(unresolvedRequest.productName()).append(" 상품이 ")
-                    .append(unresolvedRequest.restockedCount()).append("개 재입고되었습니다. ");
-        } else {
-            sb.append("해결되지 않은 재입고 요청은 없습니다. ");
-        }
-
-        if (!recentPurchases.isEmpty()) {
-            sb.append("최근 구매 상품은 ").append(recentPurchases.get(0).productName()).append("입니다.");
-        }
-
-        return sb.toString();
-    }
-
-    private String nullToNone(String value) {
-        return value == null ? "없음" : value;
     }
 
     private List<RecentPurchaseResponse> getRecentPurchases(Long customerId) {

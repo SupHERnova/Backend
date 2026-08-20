@@ -64,4 +64,20 @@ public class Customer extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "recommendation_type", length = 20)
     private RecommendationType recommendationType;
+
+    @Column(name = "restock_requested_product_name", length = 100)
+    private String restockRequestedProductName;
+
+    public void updateRecommendationType(RecommendationType recommendationType) {
+        this.recommendationType = recommendationType;
+    }
+
+    /**
+     * 고객이 재입고를 요청한 특정 상품명을 함께 기록한다. 상품명을 특정하지 못한 경우(null)에는
+     * 재입고 요청 여부만 반영되고, 실제 매칭은 취향 키워드 기반으로 대체된다.
+     */
+    public void markRestockRequested(String requestedProductName) {
+        this.recommendationType = RecommendationType.RESTOCK;
+        this.restockRequestedProductName = requestedProductName;
+    }
 }

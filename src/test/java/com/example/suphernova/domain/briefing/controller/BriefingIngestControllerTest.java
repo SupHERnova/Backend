@@ -56,7 +56,7 @@ class BriefingIngestControllerTest {
     }
 
     @Test
-    @DisplayName("전사 텍스트를 보내면 브리핑 생성과 TTS 합성이 동기로 완료되어 SUCCESS를 반환한다")
+    @DisplayName("전사 텍스트를 보내면 추천 상태(선호 키워드/재입고 여부)에 반영된 내용을 바탕으로 브리핑 생성과 TTS 합성이 동기로 완료되어 SUCCESS를 반환한다")
     void ingestText_success_returnsSuccess() throws Exception {
         when(ttsClient.synthesize(any())).thenReturn("fake-tts-audio".getBytes());
 
@@ -70,7 +70,8 @@ class BriefingIngestControllerTest {
                 .andExpect(jsonPath("$.code").value("COMMON201_1"))
                 .andExpect(jsonPath("$.result.briefingId").isNumber())
                 .andExpect(jsonPath("$.result.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.result.scriptText").value("지난번 문의하신 블랙 로퍼가 오늘 입고됐습니다."))
+                .andExpect(jsonPath("$.result.scriptText").value(
+                        "김서윤 고객님 방문 전 브리핑입니다. 해결되지 않은 재입고 요청은 없습니다. "))
                 .andExpect(jsonPath("$.result.ttsAudioUrl").isNotEmpty());
     }
 
